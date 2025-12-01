@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local User Data
+chrome_user_data/
