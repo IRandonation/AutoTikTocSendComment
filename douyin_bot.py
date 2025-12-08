@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import threading
 import random
@@ -22,6 +23,43 @@ class DouyinBot:
         self.comments_list = []
         self.current_comment_index = 0
 
+    def find_chrome_executable(self):
+        """
+        Automatically detect OS and find Chrome executable.
+        Returns path to chrome executable or None if not found.
+        """
+        system_platform = sys.platform
+        chrome_path = None
+        
+        logger.info(f"Detecting OS: {system_platform}")
+        
+        if system_platform.startswith("win"):
+            possible_paths = [
+                os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Google\\Chrome\\Application\\chrome.exe"),
+                os.path.join(os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"), "Google\\Chrome\\Application\\chrome.exe"),
+                os.path.join(os.environ.get("LOCALAPPDATA", "C:\\Users\\Default\\AppData\\Local"), "Google\\Chrome\\Application\\chrome.exe")
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    chrome_path = path
+                    break
+        elif system_platform == "darwin":
+            possible_paths = [
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                os.path.expanduser("~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    chrome_path = path
+                    break
+        
+        if chrome_path:
+            logger.info(f"Found Chrome at: {chrome_path}")
+        else:
+            logger.error("Chrome executable not found.")
+            
+        return chrome_path
+
     def get_chrome_options(self, use_user_data=True):
         options = Options()
         if use_user_data:
@@ -44,6 +82,11 @@ class DouyinBot:
         
         logger.info("Initializing Chrome Driver...")
 
+        # Find Chrome Binary
+        chrome_binary_path = self.find_chrome_executable()
+        if not chrome_binary_path:
+            raise Exception("Google Chrome not found! Please install Google Chrome to use this application.")
+
         # Ensure DBUS env is set (fix for some macOS versions)
         if "DBUS_SESSION_BUS_ADDRESS" not in os.environ:
              os.environ["DBUS_SESSION_BUS_ADDRESS"] = "/dev/null"
@@ -51,15 +94,21 @@ class DouyinBot:
         try:
             # Mode 1: Attempt to launch with saved user profile
             logger.info("Mode 1: Attempting to launch with saved user profile...")
+            options = self.get_chrome_options(use_user_data=True)
+            options.binary_location = chrome_binary_path
+            
             service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=self.get_chrome_options(use_user_data=True))
+            self.driver = webdriver.Chrome(service=service, options=options)
             logger.success("Success: Chrome launched with User Profile.")
         except Exception as e:
             logger.warning(f"Failed to launch with user profile: {e}")
             logger.warning("Mode 2: Retrying with temporary profile (Login will not be saved)...")
             try:
+                options = self.get_chrome_options(use_user_data=False)
+                options.binary_location = chrome_binary_path
+
                 service = Service(ChromeDriverManager().install())
-                self.driver = webdriver.Chrome(service=service, options=self.get_chrome_options(use_user_data=False))
+                self.driver = webdriver.Chrome(service=service, options=options)
                 logger.success("Success: Chrome launched with Temporary Profile.")
             except Exception as e2:
                  logger.error(f"Critical: Failed to launch Chrome even with temp profile: {e2}")

@@ -6,6 +6,9 @@ import os
 import threading
 from douyin_bot import DouyinBot
 from loguru import logger
+from PIL import Image, ImageDraw
+import pystray
+from pystray import MenuItem as item
 
 class TextHandler:
     """Redirect loguru logs to Tkinter Text widget"""
@@ -39,8 +42,52 @@ class App:
 
         self.create_widgets()
         self.setup_logging()
+        self.setup_tray()
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def setup_tray(self):
+        """Setup system tray icon (Windows only)"""
+        if sys.platform.startswith('win'):
+            self.root.bind("<Unmap>", self.on_minimize)
+            self.tray_icon = None
+
+    def create_tray_icon(self):
+        # Create a simple icon image
+        width = 64
+        height = 64
+        color1 = (0, 0, 0)
+        color2 = (255, 255, 255)
+        image = Image.new('RGB', (width, height), color1)
+        dc = ImageDraw.Draw(image)
+        dc.rectangle((width // 2, 0, width, height // 2), fill=color2)
+        dc.rectangle((0, height // 2, width // 2, height), fill=color2)
+        
+        menu = (item('显示 (Show)', self.show_window), item('退出 (Quit)', self.quit_app))
+        self.tray_icon = pystray.Icon("DouyinAutoSender", image, "Douyin Auto Sender", menu)
+
+    def on_minimize(self, event):
+        # Only trigger if the main window is minimized
+        if self.root.state() == 'iconic':
+            self.hide_to_tray()
+
+    def hide_to_tray(self):
+        self.root.withdraw()
+        if not self.tray_icon:
+            self.create_tray_icon()
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def show_window(self, icon=None, item=None):
+        if self.tray_icon:
+            self.tray_icon.stop()
+            self.tray_icon = None
+        self.root.after(0, self.root.deiconify)
+
+    def quit_app(self, icon=None, item=None):
+        if self.tray_icon:
+            self.tray_icon.stop()
+        self.root.after(0, self.on_close, True)
+
 
     def load_presets(self):
         try:
@@ -184,10 +231,11 @@ class App:
         logger.info(f"开始快速点赞 {count} 次")
         self.bot.send_likes(count)
 
-    def on_close(self):
-        if messagebox.askokcancel("退出", "确定要退出吗？"):
+    def on_close(self, force=False):
+        if force or messagebox.askokcancel("退出", "确定要退出吗？"):
             self.bot.close()
             self.root.destroy()
+            sys.exit(0)
 
 if __name__ == "__main__":
     root = tk.Tk()
