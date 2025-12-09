@@ -1,21 +1,28 @@
 // ==UserScript==
 // @name         Douyin Auto Sender (抖音直播自动弹幕助手)
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.6
 // @description  Automated comment sender for Douyin Live with custom presets and random intervals.
 // @author       AutoTikTokSendComment Project
-// @match        *://*.douyin.com/*
-// @match        *://live.douyin.com/*
-// @icon         https://lf1-cdn-tos.bytegoofy.com/goofy/ies/douyin_web/public/favicon.ico
+// @match        *://*/*
+// @icon         data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzAwMCIvPjxwYXRoIGQ9Ik0zMCA3MGgyMHYyMEgzMHoiIGZpbGw9IiNmZmYiLz48cGF0aCBkPSJNMzAgMzBoMjB2MjBIMzB6IiBmaWxsPSIjZmZmIi8+PC9zdmc+
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
-// @run-at       document-end
+// @grant        window.onurlchange
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
     'use strict';
+    
+    // Safety Check: Ensure we are on Douyin
+    if (!location.hostname.includes('douyin.com')) {
+        return;
+    }
+
+    console.log("✅ Douyin Auto Sender V2.5: Script injected successfully on " + location.href);
 
     // Default configuration
     const DEFAULT_CONFIG = {
@@ -49,6 +56,8 @@
 
     // UI Creation
     function createUI() {
+        if (document.getElementById('das-panel')) return; // Avoid duplicates
+
         const div = document.createElement('div');
         div.id = 'das-panel';
         div.innerHTML = `
@@ -373,9 +382,37 @@
         }, nextDelay);
     }
 
-    // Init
-    window.addEventListener('load', () => {
-        setTimeout(createUI, 2000); // Delay to let page load
-    });
+    // Auto-init and URL monitoring
+    function init() {
+        if (document.getElementById('das-panel')) return;
+        console.log("✅ Douyin Auto Sender: Attempting to create UI...");
+        createUI();
+    }
+
+    // Monitor URL changes for SPA
+    if (window.onurlchange === null) {
+        window.addEventListener('urlchange', (info) => {
+            console.log("✅ URL changed (Native):", info.url);
+            setTimeout(createUI, 1000);
+        });
+    } else {
+        // Fallback for older managers
+        let lastUrl = location.href;
+        new MutationObserver(() => {
+            const url = location.href;
+            if (url !== lastUrl) {
+                lastUrl = url;
+                console.log("✅ URL changed (Mutation):", url);
+                setTimeout(createUI, 1000);
+            }
+        }).observe(document, {subtree: true, childList: true});
+    }
+
+    // Initial load
+    init();
+    
+    // Backup init
+    setTimeout(init, 2000);
+    setTimeout(init, 5000);
 
 })();
